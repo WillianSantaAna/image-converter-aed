@@ -117,16 +117,16 @@ public class ImageConverterAED {
 
             for (int i = 0; i < image.getHeight(); i++) {
                 for (int j = 0; j < image.getWidth(); j++) {
-                    Color cor = new Color(image.getRGB(j, i));
+                    Color color = new Color(image.getRGB(j, i));
                     switch (rgb) {
                         case 'r':
-                            rgbImage.setRGB(j, i, getRed(cor).getRGB());
+                            rgbImage.setRGB(j, i, new Color(color.getRed(), 0, 0).getRGB());
                         break;
                         case 'g':
-                            rgbImage.setRGB(j, i, getGreen(cor).getRGB());
+                            rgbImage.setRGB(j, i, new Color(0, color.getGreen(), 0).getRGB());
                         break;
                         case 'b':
-                            rgbImage.setRGB(j, i, getBlue(cor).getRGB());
+                            rgbImage.setRGB(j, i, new Color(0, 0, color.getBlue()).getRGB());
                         break;
                     }
                 }
@@ -184,6 +184,40 @@ public class ImageConverterAED {
             e.printStackTrace();
         }
     }
+
+    public void blurImage(String path, int kernel) {
+        try {            
+            BufferedImage blurImage = new BufferedImage(image.getWidth() - (kernel - 1), image.getHeight() - (kernel - 1), BufferedImage.TYPE_INT_RGB);
+            int kernelCrop = ((kernel - 1) / 2);
+
+            for (int i = kernelCrop; i < image.getHeight() - kernelCrop; i++) {
+                for (int j = kernelCrop; j < image.getWidth() - kernelCrop; j++) {
+                    int sumR = 0;
+                    int sumG = 0;
+                    int sumB = 0;
+
+                    for (int k = (i - kernelCrop); k <= (i + kernelCrop); k++) {
+                        for (int l = (j - kernelCrop); l <= (j + kernelCrop); l++) {
+                            sumR += new Color(image.getRGB(l, k)).getRed();
+                            sumG += new Color(image.getRGB(l, k)).getGreen();
+                            sumB += new Color(image.getRGB(l, k)).getBlue();
+                        }
+                    }
+
+                    int avgR = (int) (sumR / Math.pow(kernel, 2));
+                    int avgG = (int) (sumG / Math.pow(kernel, 2));
+                    int avgB = (int) (sumB / Math.pow(kernel, 2));
+
+                    blurImage.setRGB(j - kernelCrop, i - kernelCrop, new Color(avgR, avgG, avgB).getRGB());
+                }
+            }
+
+            ImageIO.write(blurImage, "jpg", new File(path));
+            System.out.println("Rotate right image in " + path);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
     
     public void bwNegative(String path) {
         try {
@@ -214,52 +248,31 @@ public class ImageConverterAED {
 
             int Gx[][] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
             int Gy[][] = {{1, 2, 1}, {0, 0, 0}, {-1, -2, -1}};
-            int Mx[][] = new int[image.getHeight()][image.getWidth()];
-            int My[][] = new int[image.getHeight()][image.getWidth()];
             int M[][] = new int[image.getHeight()][image.getWidth()];
-            int pos[][][] = {{{-1, -1}, {-1, 0}, {-1, 1}}, {{0, -1}, {0, 0}, {0, 1}}, {{1, -1}, {1, 0}, {1, 1}}};
             int biggestGradient = 0;
 
 
             for (int r = 1; r < image.getHeight() - 1; r++) {
                 for (int c = 1; c < image.getWidth() - 1; c++) {
-                    for (int i = 0; i < pos.length; i++) {
-                        for (int[] p : pos[i]) {
-                            Mx[r + p[0]][c + p[1]] = new Color(image.getRGB(c + p[1], r + p[0])).getRed();
-                        }
-                    }
+                    int tempX = 0;
+                    int tempY = 0;
 
-                    int tempMx = 0;
-                    for (int i = 0; i < pos.length; i++) {
-                        for (int j = 0; j < pos[0].length; j++) {
-                            tempMx += Gx[i][j] * Mx[r + pos[i][j][0]][c + pos[i][j][1]];
+                    for (int k = (r - 1), i = 0; k <= (r + 1); k++, i++) {
+                        for (int l = (c - 1), j = 0; l <= (c + 1); l++, j++) {
+                            tempX += Gx[i][j] * new Color(image.getRGB(l, k)).getRed();
+                            tempY += Gy[i][j] * new Color(image.getRGB(l, k)).getRed();
                         }
                     }
-                    Mx[r][c] = tempMx;
                     
-                    for (int i = 0; i < pos.length; i++) {
-                        for (int[] p : pos[i]) {
-                            My[r + p[0]][c + p[1]] = new Color(image.getRGB(c + p[1], r + p[0])).getRed();
-                        }
-                    }
-
-                    int tempMy = 0;
-                    for (int i = 0; i < pos.length; i++) {
-                        for (int j = 0; j < pos[0].length; j++) {
-                            tempMy += Gy[i][j] * My[r + pos[i][j][0]][c + pos[i][j][1]];
-                        }
-                    }
-                    My[r][c] = tempMy;
-                    
-                    M[r][c] = (int) (Math.sqrt(Math.pow(Mx[r][c], 2) + Math.pow(My[r][c], 2)));
+                    M[r][c] = (int) (Math.sqrt(Math.pow(tempX, 2) + Math.pow(tempY, 2)));
 
                     if (M[r][c] > biggestGradient)
                         biggestGradient = M[r][c];
                 }
             }
             
-            for (int i = 0; i < image.getHeight(); i++) {
-                for (int j = 0; j < image.getWidth(); j++) {
+            for (int i = 1; i < image.getHeight() - 1; i++) {
+                for (int j = 1; j < image.getWidth() - 1; j++) {
                     M[i][j] = (int) M[i][j] * 255 / biggestGradient;
                     Color color = new Color(M[i][j], M[i][j], M[i][j]);
                     imgContours.setRGB(j, i, color.getRGB());
@@ -298,30 +311,5 @@ public class ImageConverterAED {
         int rgb = r + g + b;
 
         return new Color(rgb, rgb, rgb);
-    }
-
-    private Color getRed(Color color) {
-        int r = color.getRed() * 1;
-        int g = color.getGreen() * 0;
-        int b = color.getBlue() * 0;
-
-        return new Color(r, g, b);
-    }
-
-    private Color getGreen(Color color) {
-        int r = color.getRed() * 0;
-        int g = color.getGreen() * 1;
-        int b = color.getBlue() * 0;
-
-        return new Color(r, g, b);
-    }
-
-    private Color getBlue(Color color) {
-        int r = color.getRed() * 0;
-        int g = color.getGreen() * 0;
-        int b = color.getBlue() * 1;
-
-        return new Color(r, g, b);
-    }
-    
+    }    
 }
